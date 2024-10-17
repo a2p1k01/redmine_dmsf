@@ -19,7 +19,7 @@
 
 function dmsfAddLink(linksSpan, linkId, linkName, title, project, awf) {
 
-    if (linksSpan.children().length < 10) {
+    if (linksSpan.children().length < 100) {
 
         let nextLinkId = dmsfAddLink.nextLinkId++;
         let linkSpan = $('<span>', { id: 'dmsf_links_attachments_' + nextLinkId, 'class': 'attachment' });
@@ -45,112 +45,10 @@ function dmsfAddLink(linksSpan, linkId, linkName, title, project, awf) {
 
 dmsfAddLink.nextLinkId = 1000;
 
-/* Remove the extension and replace underscores with spaces, 'after_init.rb' -> 'after init' */
-function filenameToTitle(filename) {
-    return filename.replace(/\.[^/.]+$/, "").replace(/_+/g, " ");
-}
-
-/* File size to human readable file size, 1024 -> 1.00 KB */
-function humanFileSize(bytes) {
-    var u = 0, s= 1024;
-    while (bytes >= s || -bytes >= s) {
-        bytes /= s;
-        u++;
-    }
-    return (u ? bytes.toFixed(2) + ' ' : bytes) + ' KMGTPEZY'[u] + 'B';
-}
-
-/* Increase version */
-function increaseVersion(version, max) {
-    let res;
-    if (version >= 0) {
-        if ((version + 1) < max) {
-            res = ++version;
-        } else {
-            res = version;
-        }
-    } else {
-        if (-(version - 1) < 90 /* 'Z' */) {
-            res = --version;
-        } else
-            res = version;
-    }
-    if (res < 0) {
-        res = String.fromCharCode(-res);    // -65 => 'A'
-    }
-    return res;
-}
-
-/* Get next version */
-function getNextVersion(filename, files) {
-    for(let i = 0; i < files.length; i++) {
-        if(filename === files[i][0]) {
-            if(files[i][3] && (files[i][3] >= 0)) {
-                return [files[i][1], files[i][2], increaseVersion(files[i][3], 1000)];
-            }
-            if(files[i][2] && (files[i][2] >= 0)) {
-                return [files[i][1], increaseVersion(files[i][2], 1000), null];
-            }
-            return [increaseVersion(files[i][1], 100), null, null];
-        }
-    }
-    return [0, 1, null];
-}
-
-/* Get the current version */
-function getCurrentVersion(filename, files) {
-    for(let i = 0; i < files.length; i++) {
-        if (filename === files[i][0]) {
-            let res = '';
-            if (files[i][3] != null) {
-                res = '.' + files[i][3];
-            }
-            if (files[i][2] != null) {
-                res = '.' + files[i][2] + res;
-            }
-            if (files[i][1] != null) {
-                res = files[i][1] + res;
-            }
-            return res;
-        }
-    }
-    return '0.1.0';
-}
-
-/* Detects locked file */
-function isFileLocked(filename, files) {
-    for(let i = 0; i < files.length; i++) {
-        if (filename === files[i][0]) {
-            return files[i][4];
-        }
-    }
-    return false;
-}
-
-/* Replace selected version */
-function replaceVersion(detailsForm, attachmentId, name, version) {
-    let index = detailsForm.search('id="committed_files_' + attachmentId + '_version_' + name + '"');
-    if (index != -1) {
-        let str = detailsForm.substring(index);
-        // Remove the original selection
-        str = str.replace('selected="selected" ', '');
-        // Select new version
-        if (version != null) {
-            str = str.replace('<option value="' + version + '">' + version + '</option>', '<option selected="selected" value="' + version + '">' + version + '</option>');
-        }
-        else {
-            let c = String.fromCharCode(160); // &nbsp;
-            str = str.replace('<option value="">' + c + '</option>', '<option selected="selected" value="">' + c + '</option>');
-        }
-        detailsForm = detailsForm.substring(0, index) + str;
-    }
-    return detailsForm;
-}
-
 function dmsfAddFile(inputEl, file, eagerUpload) {
 
     let attachments = $('#dmsf_attachments_fields');
-    let max = ($(inputEl).attr('multiple') == 'multiple') ? 10 : 1
+    let max = ($(inputEl).attr('multiple') == 'multiple') ? 100 : 1
 
     if (attachments.children().length < max) {
 
@@ -164,79 +62,34 @@ function dmsfAddFile(inputEl, file, eagerUpload) {
 
         if($(inputEl).attr('multiple') == 'multiple') {
 
+            if($(inputEl).data('description')) {
+
+                let description = $('<input>', {type: 'text', 'class': 'description',
+                    name: 'dmsf_attachments[' + attachmentId + '][description]', maxlength: 255,
+                    placeholder: $(inputEl).data('description-placeholder')
+                }).toggle(!eagerUpload);
+
+                fileSpan.append(description);
+            }
+
             fileSpan.append(iconDel.click(dmsfRemoveFileLbl));
 
-            if ($(inputEl).data('awf')) {
+            if($(inputEl).data('awf')) {
 
-                let iconWf = $('<a>').attr({
-                    href: '/dmsf-workflows/' + $(inputEl).attr(
-                        'data-project') + "/assign?attachment_id=" + attachmentId,
-                    'class': 'modify-upload icon-only icon-ok',
-                    'data-remote': 'true'
-                });
+                let iconWf = $('<a>').attr({href: '/dmsf-workflows/' + $(inputEl).attr(
+                    'data-project') + "/assign?attachment_id=" + attachmentId, 'class': 'modify-upload icon-only icon-ok',
+                    'data-remote': 'true'});
 
                 fileSpan.append(iconWf);
             }
 
-            // Details
-            let detailsDiv = $('<div>').attr({id: 'dmsf_attachments_details_' + attachmentId});
-            let detailsArrow = $('<a>');
-
-            detailsArrow.text('[+]');
-            detailsArrow.attr({href: "#", 'data-cy': 'toggle__new_revision_from_content--dmsf', title: 'Details'});
-            detailsArrow.attr(
-                {
-                    onclick: "let newRevisionForm = $('#dmsf_attachments_details_" + attachmentId + "');" +
-                        "let operator = newRevisionForm.is(':visible') ? '+' : '-';" +
-                        "newRevisionForm.toggle();" +
-                        "$(this).text('[' + operator + ']');" +
-                        "$('#dmsf-upload-button').hide();" +
-                        "return false;"
-                });
-            let files = $(inputEl).data('files');
-            let locked = isFileLocked(file.name, files);
-            let detailsForm = $(inputEl).data(locked ? 'dmsf-file-details-form-locked' : 'dmsf-file-details-form');
-
-            // Index
-            detailsForm = detailsForm.replace(/\[0\]/g, '[' + attachmentId + ']');
-            detailsForm = detailsForm.replace(/_0/g, '_' + attachmentId);
-            // Name
-            detailsForm = detailsForm.replace('id="committed_files_' + attachmentId + '_name" value=""',
-                'id="committed_files_' + attachmentId + '_name" value="' + file.name + '"');
-            // Title
-            detailsForm = detailsForm.replace('id="committed_files_' + attachmentId + '_title"',
-                'id="committed_files_' + attachmentId + '_title" value = "' + filenameToTitle(file.name) + '"');
-            // Size
-            detailsForm = detailsForm.replace('id="committed_files_' + attachmentId + '_size"',
-                'id="committed_files_' + attachmentId + '_size" value = "' + humanFileSize(file.size) + '"');
-            // Mime type
-            detailsForm = detailsForm.replace('id="committed_files_' + attachmentId + '_mime_type"',
-                'id="committed_files_' + attachmentId + '_mime_type" value = "' + file.type + '"');
-            // Version
-            let version;
-            if(locked) {
-                version = getCurrentVersion(file.name, files);
-                detailsForm = detailsForm.replace('id="committed_files_' + attachmentId + '_version" value="0.0"',
-                    'id="committed_files_' + attachmentId + '_version" value="' + version + '"');
-            } else {
-                version = getNextVersion(file.name, files);
-                detailsForm = replaceVersion(detailsForm, attachmentId, 'patch', version[2]);
-                detailsForm = replaceVersion(detailsForm, attachmentId, 'minor', version[1]);
-                detailsForm = replaceVersion(detailsForm, attachmentId, 'major', version[0]);
-            }
-
-            detailsDiv.append(detailsForm);
-            detailsDiv.hide();
-
-            fileSpan.append(detailsArrow)
             attachments.append(fileSpan);
-            attachments.append(detailsDiv);
-        } else {
+        }
+        else{
             fileSpan.append(iconDel.click(dmsfRemoveFileLbl));
             attachments.append(fileSpan);
             $('#dmsf_file_revision_name').val(file.name);
         }
-        attachments.append('<br>');
 
         if(eagerUpload) {
             dmsfAjaxUpload(file, attachmentId, fileSpan, inputEl);
