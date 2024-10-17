@@ -40,25 +40,17 @@ class DmsfUploadController < ApplicationController
   end
 
   def upload_files
+    directory_name = params[:directory_name]
     uploaded_files = params[:dmsf_attachments]
-    # Commit
-    if params[:commit] == l(:label_dmsf_upload_commit)
-      uploaded_files&.each do |key, uploaded_file|
-        upload = DmsfUpload.create_from_uploaded_attachment(@project, @folder, uploaded_file)
-        params[:committed_files][key][:disk_filename] = upload.disk_filename
-        params[:committed_files][key][:digest] = upload.digest
-        params[:committed_files][key][:tempfile_path] = upload.tempfile_path
-      end
-      commit_files
-    # Upload
+    @uploads = []
+
+    if directory_name.present?
+      folder = DmsfFolder.create_or_find_by(title: directory_name, project: @project, user: User.current)
+      folder.save!
+
+      custom_folder_upload_files uploaded_files, folder, params[:committed_files]
     else
-      @uploads = []
-      # standard file input uploads
-      uploaded_files&.each do |_, uploaded_file|
-        upload = DmsfUpload.create_from_uploaded_attachment(@project, @folder, uploaded_file)
-        @uploads.push(upload) if upload
-      end
-      flash.now[:error] = "#{l(:label_attachment)} #{l('activerecord.errors.messages.invalid')}" if @uploads.empty?
+      custom_folder_upload_files uploaded_files, @folder, params[:committed_files]
     end
   end
 
@@ -114,7 +106,6 @@ class DmsfUploadController < ApplicationController
       uploaded_file[:tempfile_path] = upload.tempfile_path
       uploaded_file[:size] = upload.size
       uploaded_file[:digest] = upload.digest
-      uploaded_file[:mime_type] = upload.mime_type
     end
     commit_files_internal uploaded_files
   end
@@ -134,6 +125,26 @@ class DmsfUploadController < ApplicationController
   end
 
   private
+
+  def custom_folder_upload_files(uploaded_files, folder, committed_files)
+    if params[:commit] == l(:label_dmsf_upload_commit)
+      uploaded_files&.each do |key, uploaded_file|
+        upload = DmsfUpload.create_from_uploaded_attachment(@project, folder, uploaded_file)
+        committed_files[key][:disk_filename] = upload.disk_filename
+        committed_files[key][:digest] = upload.digest
+        committed_files[key][:tempfile_path] = upload.tempfile_path
+      end
+      commit_files
+      # Upload
+    else
+      # standard file input uploads
+      uploaded_files&.each do |_, uploaded_file|
+        upload = DmsfUpload.create_from_uploaded_attachment(@project, folder, uploaded_file)
+        @uploads.push(upload) if upload
+      end
+      flash.now[:error] = "#{l(:label_attachment)} #{l('activerecord.errors.messages.invalid')}" if @uploads.empty?
+    end
+  end
 
   def commit_files_internal(committed_files)
     @files, failed_uploads = DmsfUploadHelper.commit_files_internal(committed_files, @project, @folder, self)
