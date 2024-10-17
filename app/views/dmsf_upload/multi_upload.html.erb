@@ -18,8 +18,6 @@
   # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 %>
 
-<% heads_for_wiki_formatter %>
-
 <%= render partial: '/dmsf/path',
            locals: { folder: @folder, filename: nil, title: l(:label_attachment_new) } %>
 
@@ -27,14 +25,14 @@
 
 <%= form_tag({ controller: 'dmsf_upload', action: 'upload_files', id: @project, folder_id: @folder },
              { id: 'uploadform', multipart: true }) do %>
-  <span class="dmsf-uploader">
-    <%= render partial: 'dmsf_upload/form',
-               locals: { multiple: true, container: nil, description: true, awf: false } %>
-  </span>
+  <%= text_field_tag :directory_name, nil, placeholder: l(:label_directory_name) %>
+  <div class="box tabular">
+    <span class="dmsf-uploader">
+      <%= render partial: 'dmsf_upload/form',
+                 locals: { multiple: true, container: nil, description: true, awf: false } %>
+    </span>
+  </div>
   <div class="form-actions">
-    <%= submit_tag l(:label_upload), data: { cy: 'button__submit--dmsf-upload--project' }, class: 'button-positive',
-                   id: "dmsf-upload-button" %>
-    <%= submit_tag l(:label_dmsf_upload_commit), data: { cy: 'button__submit--dmsf-upload-commit--project' },
-                   class: 'button-positive' %>
+    <%= submit_tag l(:label_upload), data: { cy: 'button__submit--dmsf-upload--project' }, class: 'button-positive' %>
   </div>
 <% end %>
